@@ -1,26 +1,39 @@
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
-import PanelModule from './panel-module';
+import { ALLOWED_MODULES, getPanelContext, hasSupabaseEnv, MODULES, REAL_MODULES } from '@/lib/panel/context';
+import { PAGE_INFO } from '@/lib/panel/modules';
+import { formatDate, todayInZone } from '@/lib/time';
+import PanelModule, { SoonBadge } from './panel-module';
+import AgendaView from './views/agenda';
+import AtendimentosView from './views/atendimentos';
+import ClientesView from './views/clientes';
+import ServicosView from './views/servicos';
+import EquipeView from './views/equipe';
+import HorariosView from './views/horarios';
+import ComingSoonView from './views/coming-soon';
+import MissingEnv from './views/missing-env';
 
-export default async function ModulePage({ params }: { params: Promise<{ modulo: string }> }) {
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+export default async function ModulePage({ params, searchParams }: { params: Promise<{ modulo: string }>; searchParams: SearchParams }) {
   const { modulo } = await params;
-  if (!['agenda','fila','atendimentos','clientes','recuperacao','servicos','equipe','financeiro','estoque','fidelizacao','relatorios','alertas','metas','notificacoes','configuracoes','comissoes'].includes(modulo)) redirect('/painel');
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return <PanelModule moduleKey={modulo} shopName="Minha barbearia" role="owner" userName="Equipe" />;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/entrar');
-  const { data: memberships } = await supabase.from('barbershop_members').select('barbershop_id, role, barbershops(id,name,onboarding_step)').eq('user_id', user.id).limit(1);
-  const membership = memberships?.[0];
-  const shop = Array.isArray(membership?.barbershops) ? membership.barbershops[0] : membership?.barbershops;
-  if (!membership || !shop) redirect('/painel');
-  if (shop.onboarding_step !== 'complete') redirect('/painel');
-  const role = membership.role;
-  const allowed: Record<string, string[]> = {
-    owner: ['agenda','fila','atendimentos','clientes','recuperacao','servicos','equipe','financeiro','estoque','fidelizacao','relatorios','alertas','metas','notificacoes','configuracoes','comissoes'],
-    manager: ['agenda','fila','atendimentos','clientes','recuperacao','servicos','estoque','fidelizacao','alertas','notificacoes'],
-    barber: ['agenda','atendimentos','clientes','comissoes'],
-    receptionist: ['agenda','fila','atendimentos','clientes','recuperacao','notificacoes'],
-  };
-  if (!allowed[role]?.includes(modulo)) redirect(role === 'barber' ? '/painel/agenda' : '/painel');
-  return <PanelModule moduleKey={modulo} shopName={shop.name} role={role} userName={String(user.user_metadata?.full_name ?? user.email ?? 'Usuário')} />;
+  if (!(MODULES as readonly string[]).includes(modulo)) redirect('/painel');
+  if (!hasSupabaseEnv()) return <MissingEnv/>;
+  const ctx = await getPanelContext();
+  if (!ALLOWED_MODULES[ctx.role]?.includes(modulo)) redirect(ctx.role === 'barber' ? '/painel/agenda' : '/painel');
+
+  const raw = await searchParams;
+  const query = Object.fromEntries(Object.entries(raw).map(([key, value]) => [key, Array.isArray(value) ? value[0] : value]));
+  const info = PAGE_INFO[modulo] ?? PAGE_INFO.agenda;
+  const real = REAL_MODULES.includes(modulo);
+  const todayLabel = formatDate(todayInZone(ctx.shop.timezone), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  return <PanelModule moduleKey={modulo} shopName={ctx.shop.name} shopSlug={ctx.shop.slug} role={ctx.role} userName={ctx.userName} todayLabel={todayLabel} title={info.title} description={info.description} headerAction={real ? undefined : <SoonBadge/>}>
+    {modulo === 'agenda' && <AgendaView ctx={ctx} params={query}/>}
+    {modulo === 'atendimentos' && <AtendimentosView ctx={ctx} params={query}/>}
+    {modulo === 'clientes' && <ClientesView ctx={ctx} params={query}/>}
+    {modulo === 'servicos' && <ServicosView ctx={ctx}/>}
+    {modulo === 'equipe' && <EquipeView ctx={ctx}/>}
+    {modulo === 'horarios' && <HorariosView ctx={ctx} params={query}/>}
+    {!real && <ComingSoonView title={info.title}/>}
+  </PanelModule>;
 }
