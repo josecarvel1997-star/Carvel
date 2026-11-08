@@ -9,6 +9,9 @@ export const metadata: Metadata = {
 /* Página inicial gerada a partir do design do Stitch (desktop + mobile). */
 export default function Home() {
   return <div className="carvel-home">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+    <link rel="stylesheet" precedence="default" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Space+Grotesk:wght@400;500;600;700&display=swap" />
+    <link rel="stylesheet" precedence="default" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" />
     <div className="carvel-desktop hidden md:block bg-background text-on-background font-body-md antialiased selection:bg-primary-container selection:text-on-primary-container relative overflow-x-hidden">
 
 <div className="fixed inset-0 custom-radial-glow pointer-events-none z-0"></div>
