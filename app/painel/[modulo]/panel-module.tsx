@@ -1,311 +1,60 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import Brand from '@/app/components/brand';
+import { signOut } from '@/app/actions';
+import { ALLOWED_MODULES, REAL_MODULES } from '@/lib/panel/modules';
+import { ROLE_LABEL, type MemberRole } from '@/lib/panel/types';
 import {
-  Activity, ArrowDownLeft, ArrowLeft, ArrowRight, Bell, CalendarDays, Check,
-  ChevronDown, ChevronLeft, ChevronRight, CircleCheck, CircleHelp, Clock3, CreditCard,
-  Download, Gift, Heart, LayoutDashboard, LogOut, Menu, MoreHorizontal, Package,
-  Plus, Search, Settings, Scissors, Sparkles, TrendingUp, TriangleAlert, UserRound, UsersRound, X,
+  Activity, ArrowRight, Bell, CalendarDays, ChevronRight, Clock3, CreditCard, Heart, LayoutDashboard,
+  LogOut, Menu, Package, Percent, Scissors, Settings, Sparkles, UsersRound, CalendarClock,
 } from 'lucide-react';
 
-type Props = { moduleKey: string; shopName: string; role: string; userName: string };
-type Booking = { time: string; client: string; service: string; staff: string; price: number; status: string; duration: string };
+type Props = {
+  moduleKey: string;
+  shopName: string;
+  shopSlug: string;
+  role: MemberRole;
+  userName: string;
+  todayLabel: string;
+  title: string;
+  description: string;
+  headerAction?: ReactNode;
+  children: ReactNode;
+};
 
 const navigation = [
-  { group: 'INÍCIO', items: [{ key: '', label: 'Visão geral', icon: LayoutDashboard }] },
+  { group: 'INÍCIO', items: [{ key: '', label: 'Visão geral', icon: LayoutDashboard }, { key: 'alertas', label: 'Central de alertas', icon: Bell }] },
   { group: 'OPERAÇÃO', items: [{ key: 'agenda', label: 'Agenda', icon: CalendarDays }, { key: 'atendimentos', label: 'Atendimentos', icon: Scissors }, { key: 'fila', label: 'Fila de espera', icon: Clock3 }] },
   { group: 'RELACIONAMENTO', items: [{ key: 'clientes', label: 'Clientes', icon: UsersRound }, { key: 'recuperacao', label: 'Clientes para retornar', icon: Heart }, { key: 'fidelizacao', label: 'Fidelização', icon: Sparkles }] },
-  { group: 'GESTÃO', items: [{ key: 'servicos', label: 'Serviços', icon: Scissors }, { key: 'equipe', label: 'Equipe', icon: UsersRound }, { key: 'financeiro', label: 'Financeiro', icon: CreditCard }, { key: 'estoque', label: 'Produtos e estoque', icon: Package }, { key: 'relatorios', label: 'Relatórios', icon: Activity }] },
+  { group: 'GESTÃO', items: [{ key: 'servicos', label: 'Serviços', icon: Scissors }, { key: 'equipe', label: 'Equipe', icon: UsersRound }, { key: 'comissoes', label: 'Comissões', icon: Percent }, { key: 'horarios', label: 'Horários', icon: CalendarClock }, { key: 'financeiro', label: 'Caixa e financeiro', icon: CreditCard }, { key: 'estoque', label: 'Produtos e estoque', icon: Package }, { key: 'relatorios', label: 'Relatórios', icon: Activity }] },
   { group: 'PREFERÊNCIAS', items: [{ key: 'configuracoes', label: 'Configurações', icon: Settings }, { key: 'notificacoes', label: 'Mensagens', icon: Bell }] },
 ];
 
-const pageInfo: Record<string, { title: string; description: string; action?: string }> = {
-  '': { title: 'Visão geral', description: 'Acompanhe os números e a rotina do seu espaço.' },
-  agenda: { title: 'Agenda', description: 'Organize horários, serviços e profissionais.' },
-  atendimentos: { title: 'Atendimentos', description: 'Acompanhe cada etapa do serviço, do início à conclusão.', action: 'Novo atendimento' },
-  fila: { title: 'Fila de espera', description: 'Visualize as chegadas e organize os próximos atendimentos.', action: 'Adicionar à fila' },
-  clientes: { title: 'Clientes', description: 'Histórico, preferências e relacionamento em um só lugar.', action: 'Novo cliente' },
-  recuperacao: { title: 'Clientes para retornar', description: 'Veja quem está há algum tempo sem visitar seu espaço.' },
-  fidelizacao: { title: 'Fidelização', description: 'Acompanhe visitas e benefícios oferecidos aos clientes.', action: 'Nova recompensa' },
-  servicos: { title: 'Serviços', description: 'Organize seu catálogo, preços e duração dos atendimentos.', action: 'Novo serviço' },
-  equipe: { title: 'Equipe', description: 'Profissionais, especialidades e comissões configuráveis.', action: 'Adicionar profissional' },
-  financeiro: { title: 'Financeiro', description: 'Receitas, despesas e movimentações do seu negócio.', action: 'Nova movimentação' },
-  estoque: { title: 'Produtos e estoque', description: 'Acompanhe produtos, quantidades e necessidade de reposição.', action: 'Adicionar produto' },
-  relatorios: { title: 'Relatórios', description: 'Indicadores demonstrativos para acompanhar sua operação.' },
-  configuracoes: { title: 'Configurações', description: 'Dados do espaço, horários e preferências da demonstração.' },
-  notificacoes: { title: 'Mensagens', description: 'Modelos de mensagem para uso manual.', action: 'Novo modelo' },
-  comissoes: { title: 'Comissões', description: 'Exemplo de apuração configurável por profissional.' },
-  alertas: { title: 'Alertas', description: 'Avisos demonstrativos sobre a operação.' },
-  metas: { title: 'Metas', description: 'Acompanhe os objetivos demonstrativos do período.' },
-};
+export function SoonBadge() { return <span className="soon-badge">Em breve</span>; }
 
-const initialBookings: Booking[] = [
-  { time: '08:30', client: 'Paula Mendes', service: 'Escova modelada', staff: 'Camila Rocha', price: 90, duration: '50min', status: 'Concluído' },
-  { time: '09:00', client: 'Mariana Costa', service: 'Corte + escova', staff: 'Camila Rocha', price: 145, duration: '1h 15min', status: 'Confirmado' },
-  { time: '10:30', client: 'João Pedro Lima', service: 'Corte clássico', staff: 'Rafael Martins', price: 65, duration: '45min', status: 'Em atendimento' },
-  { time: '11:00', client: 'Fernanda Alves', service: 'Manicure em gel', staff: 'Bruna Nascimento', price: 95, duration: '1h', status: 'Confirmado' },
-  { time: '13:30', client: 'Lucas Andrade', service: 'Barba + acabamento', staff: 'Rafael Martins', price: 58, duration: '40min', status: 'Agendado' },
-  { time: '14:00', client: 'Isabela Moreira', service: 'Design de sobrancelhas', staff: 'Camila Rocha', price: 55, duration: '30min', status: 'Confirmado' },
-  { time: '15:30', client: 'Ana Clara Souza', service: 'Hidratação capilar', staff: 'Camila Rocha', price: 120, duration: '1h', status: 'Agendado' },
-];
-
-const initialClients = [
-  { name: 'Mariana Costa', phone: '(11) 99824-1540', visits: 12, last: 'Hoje', favorite: 'Corte + escova', total: 1240, initials: 'MC', color: 'rose' },
-  { name: 'João Pedro Lima', phone: '(11) 99631-4872', visits: 8, last: 'Hoje', favorite: 'Corte clássico', total: 520, initials: 'JL', color: 'blue' },
-  { name: 'Fernanda Alves', phone: '(11) 99705-1098', visits: 16, last: 'Hoje', favorite: 'Manicure em gel', total: 1870, initials: 'FA', color: 'lavender' },
-  { name: 'Lucas Andrade', phone: '(11) 99122-7741', visits: 5, last: '12 out, 2026', favorite: 'Barba + acabamento', total: 345, initials: 'LA', color: 'green' },
-  { name: 'Isabela Moreira', phone: '(11) 99345-8820', visits: 9, last: '10 out, 2026', favorite: 'Design de sobrancelhas', total: 680, initials: 'IM', color: 'amber' },
-  { name: 'Ana Clara Souza', phone: '(11) 99178-0042', visits: 3, last: '08 out, 2026', favorite: 'Hidratação capilar', total: 420, initials: 'AS', color: 'rose' },
-];
-
-const services = [
-  { name: 'Corte clássico', category: 'Cabelo', duration: '45 min', price: 65, pros: 'Rafael, Camila', active: true },
-  { name: 'Corte + escova', category: 'Cabelo', duration: '1h 15 min', price: 145, pros: 'Camila', active: true },
-  { name: 'Manicure em gel', category: 'Unhas', duration: '1h', price: 95, pros: 'Bruna', active: true },
-  { name: 'Barba + acabamento', category: 'Barba', duration: '40 min', price: 58, pros: 'Rafael', active: true },
-  { name: 'Design de sobrancelhas', category: 'Estética', duration: '30 min', price: 55, pros: 'Camila, Bruna', active: true },
-  { name: 'Hidratação capilar', category: 'Tratamento', duration: '1h', price: 120, pros: 'Camila', active: true },
-];
-
-const professionals = [
-  { name: 'Camila Rocha', role: 'Cabeleireira', services: 'Cabelo · Estética', commission: '40%', today: 5, initials: 'CR', color: 'rose' },
-  { name: 'Rafael Martins', role: 'Barbeiro', services: 'Cabelo · Barba', commission: '45%', today: 6, initials: 'RM', color: 'blue' },
-  { name: 'Bruna Nascimento', role: 'Nail designer', services: 'Unhas · Estética', commission: '40%', today: 4, initials: 'BN', color: 'lavender' },
-];
-
-const transactions = [
-  { title: 'Corte + escova · Mariana Costa', category: 'Atendimento', date: '29 out, 09:00', method: 'Pix', value: 145, kind: 'in' },
-  { title: 'Compra de produtos capilares', category: 'Estoque', date: '29 out, 08:40', method: 'Cartão', value: -220, kind: 'out' },
-  { title: 'Manicure em gel · Fernanda Alves', category: 'Atendimento', date: '29 out, 08:30', method: 'Crédito', value: 95, kind: 'in' },
-  { title: 'Conta de energia', category: 'Despesa fixa', date: '28 out, 17:12', method: 'Pix', value: -310, kind: 'out' },
-];
-
-const brl = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
-function DemoBadge() { return <span className="demo-badge"><i/> Demonstração · dados de exemplo</span>; }
-
-export default function PanelModule({ moduleKey, shopName, role, userName }: Props) {
-  const [activeModule, setActiveModule] = useState(moduleKey);
-  const [bookings, setBookings] = useState(initialBookings);
-  const [clients, setClients] = useState(initialClients);
-  const [query, setQuery] = useState('');
-  const [professionalFilter, setProfessionalFilter] = useState('Todos os profissionais');
-  const [view, setView] = useState('Dia');
-  const [modal, setModal] = useState('');
-  const [toast, setToast] = useState('');
-  const [selectedClient, setSelectedClient] = useState<(typeof initialClients)[number] | null>(null);
+/** Estrutura do painel (menu lateral, cabeçalho). O conteúdo de cada módulo vem de Server Components. */
+export default function PanelModule({ moduleKey, shopName, shopSlug, role, userName, todayLabel, title, description, headerAction, children }: Props) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [filterTab, setFilterTab] = useState('Todos');
-  const [period, setPeriod] = useState('Este mês');
-  const [date, setDate] = useState(new Date());
-
-  const page = pageInfo[activeModule] ?? pageInfo.agenda;
-  const visibleClients = useMemo(() => clients.filter((client) => `${client.name} ${client.phone} ${client.favorite}`.toLowerCase().includes(query.toLowerCase())), [clients, query]);
-  const visibleBookings = useMemo(() => bookings.filter((booking) => (professionalFilter === 'Todos os profissionais' || booking.staff === professionalFilter) && `${booking.client} ${booking.service} ${booking.staff}`.toLowerCase().includes(query.toLowerCase())), [bookings, professionalFilter, query]);
-
-  const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 2600); };
-  const changeModule = (key: string) => { setActiveModule(key); setQuery(''); setMobileMenuOpen(false); if (key === '') window.history.pushState({}, '', '/painel'); else window.history.pushState({}, '', `/painel/${key}`); };
-  const changeBookingStatus = (target: Booking) => setBookings((current) => current.map((booking) => booking === target ? { ...booking, status: booking.status === 'Agendado' ? 'Confirmado' : booking.status === 'Confirmado' ? 'Em atendimento' : booking.status === 'Em atendimento' ? 'Concluído' : 'Agendado' } : booking));
-  const submitDemo = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    const name = String(data.get('name') ?? '').trim();
-    if (!name) return;
-    if (modal === 'Novo cliente') setClients((current) => [{ name, phone: String(data.get('phone') ?? ''), visits: 0, last: 'Novo cadastro', favorite: 'Ainda sem preferência', total: 0, initials: name.split(' ').map((part) => part[0]).slice(0, 2).join('').toUpperCase(), color: 'lavender' }, ...current]);
-    if (modal === 'Novo agendamento') setBookings((current) => [...current, { time: String(data.get('time') || '16:30'), client: name, service: String(data.get('service') || 'Serviço personalizado'), staff: String(data.get('staff') || 'Camila Rocha'), price: Number(data.get('price') || 80), duration: '45 min', status: 'Agendado' }].sort((a, b) => a.time.localeCompare(b.time)));
-    setModal(''); notify(`${modal} incluído na demonstração.`);
-  };
+  const allowed = ALLOWED_MODULES[role] ?? [];
+  const groups = navigation.map((group) => ({ ...group, items: group.items.filter((item) => item.key === '' ? role !== 'barber' : allowed.includes(item.key)) })).filter((group) => group.items.length);
 
   return <div className="workspace">
     <aside className={`workspace-sidebar ${mobileMenuOpen ? 'is-open' : ''}`}>
-      <Brand className="workspace-brand" href="/painel" subtitle="GESTÃO PARA NEGÓCIOS DE BELEZA" onClick={(event) => { event.preventDefault(); changeModule(''); }}/>
-      <button className="workspace-shop" onClick={() => notify('Seletor de espaço: recurso demonstrativo.')}><span className="workspace-shop-avatar">{shopName.slice(0, 1).toUpperCase()}</span><span><b>{shopName}</b><small>Plano demonstração</small></span><ChevronDown size={15}/></button>
-      <nav className="workspace-nav">{navigation.map((group) => <div className="nav-group" key={group.group}><small>{group.group}</small>{group.items.map((item) => <button key={item.key} onClick={() => changeModule(item.key)} className={`workspace-nav-link ${activeModule === item.key ? 'active' : ''}`}><item.icon size={17}/><span>{item.label}</span>{item.key === 'agenda' && <span className="nav-count">6</span>}</button>)}</div>)}</nav>
-      <div className="workspace-sidebar-foot"><Link href={`/b/${encodeURIComponent(shopName.toLowerCase().replace(/\s+/g, '-'))}`} className="workspace-public-link"><ArrowRight size={15}/> Ver página pública</Link><div className="workspace-user"><span className="workspace-user-avatar">{userName.slice(0, 1).toUpperCase()}</span><span><b>{userName}</b><small>{role === 'owner' ? 'Proprietário' : role}</small></span><button aria-label="Mais opções" onClick={() => notify('Opções de conta demonstrativas.')}><MoreHorizontal size={17}/></button></div></div>
+      <Brand className="workspace-brand" href="/painel" subtitle="GESTÃO PARA NEGÓCIOS DE BELEZA"/>
+      <div className="workspace-shop"><span className="workspace-shop-avatar">{shopName.slice(0, 1).toUpperCase()}</span><span><b>{shopName}</b><small>Plano inicial</small></span></div>
+      <nav className="workspace-nav">{groups.map((group) => <div className="nav-group" key={group.group}><small>{group.group}</small>{group.items.map((item) => <Link key={item.key} href={item.key ? `/painel/${item.key}` : '/painel'} onClick={() => setMobileMenuOpen(false)} className={`workspace-nav-link ${moduleKey === item.key ? 'active' : ''}`}><item.icon size={17}/><span>{item.label}</span>{item.key !== '' && !REAL_MODULES.includes(item.key) && <SoonBadge/>}</Link>)}</div>)}</nav>
+      <div className="workspace-sidebar-foot"><Link href={`/b/${shopSlug}`} className="workspace-public-link" target="_blank"><ArrowRight size={15}/> Ver página de agendamento</Link><div className="workspace-user"><span className="workspace-user-avatar">{userName.slice(0, 1).toUpperCase()}</span><span><b>{userName}</b><small>{ROLE_LABEL[role] ?? role}</small></span><form action={signOut}><button aria-label="Sair da conta" title="Sair da conta"><LogOut size={16}/></button></form></div></div>
     </aside>
     {mobileMenuOpen && <button className="workspace-overlay" aria-label="Fechar menu" onClick={() => setMobileMenuOpen(false)}/>}
     <main className="workspace-main">
-      <header className="workspace-header"><button className="workspace-menu-button" aria-label="Abrir menu" onClick={() => setMobileMenuOpen(true)}><Menu size={19}/></button><div className="workspace-breadcrumb"><span>Espaço</span><ChevronRight size={13}/><b>{page.title}</b></div><div className="workspace-header-actions"><DemoBadge/><button className="workspace-icon-button" aria-label="Central de ajuda" onClick={() => notify('Ajuda disponível na demonstração.')}><CircleHelp size={17}/></button><button className="workspace-icon-button notification-button" aria-label="Notificações" onClick={() => changeModule('alertas')}><Bell size={17}/><i/></button><span className="workspace-header-avatar">{userName.slice(0, 1).toUpperCase()}</span></div></header>
+      <header className="workspace-header"><button className="workspace-menu-button" aria-label="Abrir menu" onClick={() => setMobileMenuOpen(true)}><Menu size={19}/></button><div className="workspace-breadcrumb"><span>{shopName}</span><ChevronRight size={13}/><b>{title}</b></div><div className="workspace-header-actions"><span className="live-badge"><i/> Dados reais</span><span className="workspace-header-avatar">{userName.slice(0, 1).toUpperCase()}</span></div></header>
       <section className="workspace-content">
-        <div className="workspace-page-heading"><div><span className="workspace-date-label">QUINTA-FEIRA, 29 DE OUTUBRO DE 2026</span><h1>{page.title}</h1><p>{page.description}</p></div>{page.action && <button className="workspace-primary-button" onClick={() => setModal(page.action!)}><Plus size={17}/>{page.action}</button>}</div>
-        {activeModule === '' && <DashboardView bookings={bookings} setPeriod={setPeriod} period={period} onNew={() => setModal('Novo agendamento')} onNavigate={changeModule}/>}
-        {activeModule === 'agenda' && <AgendaView bookings={visibleBookings} professionalFilter={professionalFilter} setProfessionalFilter={setProfessionalFilter} view={view} setView={setView} date={date} setDate={setDate} onNew={() => setModal('Novo agendamento')} onStatus={changeBookingStatus}/>}
-        {activeModule === 'clientes' && <ClientsView clients={visibleClients} query={query} setQuery={setQuery} tab={filterTab} setTab={setFilterTab} onNew={() => setModal('Novo cliente')} onSelect={setSelectedClient}/>}
-        {activeModule === 'servicos' && <ServicesView onNew={() => setModal('Novo serviço')} onFeedback={notify}/>}
-        {activeModule === 'equipe' && <TeamView onNew={() => setModal('Adicionar profissional')} onFeedback={notify}/>}
-        {activeModule === 'financeiro' && <FinanceView period={period} setPeriod={setPeriod} onNew={() => setModal('Nova movimentação')}/>}
-        {activeModule === 'atendimentos' && <AppointmentsView bookings={bookings} onAction={() => notify('Ação visual de demonstração. Nenhum atendimento real foi alterado.')}/>}
-        {activeModule === 'recuperacao' && <ReturnClientsView onAction={() => notify('Perfil ilustrativo. Nenhuma mensagem foi enviada.')}/>}
-        {activeModule === 'fidelizacao' && <LoyaltyView onAction={() => notify('Exemplo de benefício. Nenhuma regra de fidelidade está ativa.')}/>}
-        {activeModule === 'estoque' && <InventoryView onAction={() => notify('Alerta ilustrativo. Nenhum estoque foi alterado.')}/>}
-        {activeModule === 'relatorios' && <ReportsView/>}
-        {activeModule === 'configuracoes' && <SettingsView shopName={shopName} onSave={() => notify('Preferências salvas nesta demonstração.')}/>}
-        {!['', 'agenda', 'clientes', 'servicos', 'equipe', 'financeiro', 'atendimentos', 'recuperacao', 'fidelizacao', 'estoque', 'relatorios', 'configuracoes'].includes(activeModule) && <GenericView moduleKey={activeModule} query={query} setQuery={setQuery} onNew={() => setModal(page.action ?? 'Novo registro')} onFeedback={notify}/>}
-        <footer className="workspace-footer"><span>Agenda Certa · experiência de demonstração</span><span>Dados fictícios para apresentação</span></footer>
+        <div className="workspace-page-heading"><div><span className="workspace-date-label">{todayLabel.toLocaleUpperCase('pt-BR')}</span><h1>{title}</h1><p>{description}</p></div>{headerAction}</div>
+        {children}
+        <footer className="workspace-footer"><span>Agenda Certa · gestão para negócios de beleza</span><span>Fuso da agenda: horário da barbearia</span></footer>
       </section>
     </main>
-    {modal && <DemoModal title={modal} onClose={() => setModal('')} onSubmit={submitDemo}/>}
-    {selectedClient && <ClientDrawer client={selectedClient} onClose={() => setSelectedClient(null)}/>}
-    {toast && <div className="workspace-toast"><Check size={16}/>{toast}</div>}
   </div>;
-}
-
-function DashboardView({ bookings, setPeriod, period, onNew, onNavigate }: { bookings: Booking[]; setPeriod: (value: string) => void; period: string; onNew: () => void; onNavigate: (key: string) => void }) {
-  return <>
-    <div className="dashboard-welcome"><div><span>RESUMO DO ESPAÇO</span><h2>Um dia bem organizado<br/>começa por aqui.</h2><p>Veja sua operação com clareza e cuide melhor de cada atendimento.</p></div><button onClick={onNew}><Plus size={16}/> Novo agendamento</button><div className="welcome-decoration"><CalendarDays size={104}/></div></div>
-    <div className="demo-data-caption"><Sparkles size={14}/> Os indicadores abaixo são exemplos visuais, não representam resultados reais.</div>
-    <div className="demo-period-row"><div><h2>Seu negócio hoje</h2><p>Resumo demonstrativo da operação</p></div><select aria-label="Período dos indicadores" value={period} onChange={(event) => setPeriod(event.target.value)}><option>Este mês</option><option>Últimos 30 dias</option><option>Esta semana</option></select></div>
-    <div className="workspace-metrics"><MetricCard icon={<CreditCard size={18}/>} label="Receita registrada" value={period === 'Esta semana' ? 'R$ 2.140' : 'R$ 7.840'} change="+12,8%" caption="em relação ao período anterior" tone="copper"/><MetricCard icon={<CalendarDays size={18}/>} label="Agendamentos hoje" value="13" change="8 confirmados" caption="5 horários ainda disponíveis" tone="lavender"/><MetricCard icon={<UsersRound size={18}/>} label="Clientes atendidos" value="248" change="+18 novos" caption="nesta demonstração" tone="green"/><MetricCard icon={<TrendingUp size={18}/>} label="Valor médio" value="R$ 86" change="+6,2%" caption="por atendimento concluído" tone="blue"/></div>
-    <div className="dashboard-grid"><section className="workspace-card revenue-card"><div className="card-heading"><div><h3>Receita ao longo do mês</h3><p>Valores demonstrativos · outubro de 2026</p></div><button aria-label="Mais opções" onClick={() => onNavigate('relatorios')}><MoreHorizontal size={18}/></button></div><RevenueChart/><div className="chart-legend"><span><i/> Este mês</span><span><i/> Mês anterior</span><b>R$ 7.840,00</b></div></section><section className="workspace-card occupancy-card"><div className="card-heading"><div><h3>Ocupação da agenda</h3><p>Exemplo de horários de hoje</p></div><button aria-label="Ver agenda" onClick={() => onNavigate('agenda')}><ArrowRight size={17}/></button></div><div className="occupancy-ring"><div><b>78%</b><span>ocupada</span></div></div><div className="occupancy-summary"><span><i className="dot-copper"/> 13 agendados</span><span><i className="dot-muted"/> 4 disponíveis</span></div></section></div>
-    <section className="workspace-card upcoming-card"><div className="card-heading"><div><h3>Próximos atendimentos</h3><p>Uma prévia da agenda · dados de demonstração</p></div><button className="workspace-link-button" onClick={() => onNavigate('agenda')}>Ver agenda <ArrowRight size={15}/></button></div><div className="upcoming-list">{bookings.filter((booking) => booking.status !== 'Concluído').slice(0, 4).map((booking) => <div className="upcoming-item" key={`${booking.time}-${booking.client}`}><time>{booking.time}</time><span className="appointment-avatar">{booking.client.split(' ').map((p) => p[0]).slice(0, 2).join('')}</span><span className="upcoming-person"><b>{booking.client}</b><small>{booking.service} · {booking.staff}</small></span><span className={`status-pill ${statusClass(booking.status)}`}>{booking.status}</span><b className="upcoming-price">{brl(booking.price)}</b></div>)}</div></section>
-    <section className="workspace-card activity-card"><div className="card-heading"><div><h3>Atividade recente</h3><p>O que aconteceu no espaço hoje</p></div><button onClick={() => onNavigate('atendimentos')} className="workspace-link-button">Ver atendimentos <ArrowRight size={15}/></button></div><div className="activity-list"><ActivityItem icon={<Check size={15}/>} text={<><b>Atendimento concluído</b> · Mariana Costa</>} detail="Corte + escova · há 12 min" tone="green"/><ActivityItem icon={<CalendarDays size={15}/>} text={<><b>Novo horário reservado</b> · Rafael Martins</>} detail="Corte clássico · há 28 min" tone="lavender"/><ActivityItem icon={<CreditCard size={15}/>} text={<><b>Pagamento registrado</b> · Pix</>} detail="R$ 145,00 · há 41 min" tone="copper"/></div></section>
-  </>;
-}
-
-function MetricCard({ icon, label, value, change, caption, tone }: { icon: React.ReactNode; label: string; value: string; change: string; caption: string; tone: string }) {
-  return <article className="workspace-metric"><div className={`metric-symbol ${tone}`}>{icon}</div><span>{label}</span><div className="metric-value-row"><strong>{value}</strong><small className={tone === 'copper' || tone === 'green' ? 'positive' : ''}>{change}</small></div><p>{caption}</p></article>;
-}
-
-function RevenueChart() {
-  return <div className="revenue-chart"><div className="chart-y-axis"><span>R$ 2.000</span><span>R$ 1.500</span><span>R$ 1.000</span><span>R$ 500</span><span>R$ 0</span></div><div className="chart-plot"><div className="chart-guides"><i/><i/><i/><i/><i/></div><svg viewBox="0 0 700 210" preserveAspectRatio="none" aria-label="Gráfico demonstrativo de receitas"><defs><linearGradient id="revenue-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#ba6440" stopOpacity=".2"/><stop offset="1" stopColor="#ba6440" stopOpacity="0"/></linearGradient></defs><path d="M0,165 C50,148 65,161 100,125 S165,142 200,112 S255,127 300,89 S360,112 400,72 S455,99 500,66 S570,82 600,48 S665,65 700,27 L700,210 L0,210 Z" fill="url(#revenue-fill)"/><path d="M0,165 C50,148 65,161 100,125 S165,142 200,112 S255,127 300,89 S360,112 400,72 S455,99 500,66 S570,82 600,48 S665,65 700,27" fill="none" stroke="#b85d33" strokeWidth="3" strokeLinecap="round"/></svg><div className="chart-x-axis"><span>01 out</span><span>05 out</span><span>10 out</span><span>15 out</span><span>20 out</span><span>25 out</span><span>29 out</span></div></div></div>;
-}
-
-function AgendaView({ bookings, professionalFilter, setProfessionalFilter, view, setView, date, setDate, onNew, onStatus }: { bookings: Booking[]; professionalFilter: string; setProfessionalFilter: (value: string) => void; view: string; setView: (value: string) => void; date: Date; setDate: (value: Date) => void; onNew: () => void; onStatus: (booking: Booking) => void }) {
-  const dateLabel = new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }).format(date);
-  const shiftDate = (step: number) => { const next = new Date(date); next.setDate(next.getDate() + step); setDate(next); };
-  return <div className="agenda-view"><div className="agenda-toolbar"><div className="agenda-date-tools"><button className="date-today-button" onClick={() => setDate(new Date())}>Hoje</button><button className="workspace-icon-button" onClick={() => shiftDate(-1)} aria-label="Dia anterior"><ChevronLeft size={17}/></button><button className="workspace-icon-button" onClick={() => shiftDate(1)} aria-label="Próximo dia"><ChevronRight size={17}/></button><b>{dateLabel}</b></div><div className="agenda-filters"><select value={professionalFilter} onChange={(event) => setProfessionalFilter(event.target.value)} aria-label="Filtrar por profissional"><option>Todos os profissionais</option>{professionals.map((pro) => <option key={pro.name}>{pro.name}</option>)}</select><div className="segmented-control">{['Dia', 'Semana'].map((item) => <button className={view === item ? 'active' : ''} onClick={() => setView(item)} key={item}>{item}</button>)}</div></div></div>
-    <div className="agenda-staff-strip"><span>Agenda da equipe</span>{professionals.map((pro) => <span key={pro.name}><i className={`staff-dot ${pro.color}`}/>{pro.name.split(' ')[0]}</span>)}</div>
-    <section className="workspace-card agenda-card"><div className="agenda-card-heading"><div><h3>{view === 'Dia' ? 'Horários de atendimento' : 'Resumo da semana'}</h3><p>Toque em um status para avançar a etapa do atendimento.</p></div><button className="workspace-primary-button compact" onClick={onNew}><Plus size={16}/> Novo horário</button></div>{view === 'Semana' && <div className="week-days">{['Seg 26', 'Ter 27', 'Qua 28', 'Qui 29', 'Sex 30', 'Sáb 31'].map((day) => <button key={day} className={day.endsWith('29') ? 'selected' : ''}>{day}</button>)}</div>}<div className="agenda-timeline">{['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'].map((time) => { const booking = bookings.find((item) => item.time === time); const bookingIndex = bookings.findIndex((item) => item.time === time); return <div className={`agenda-row ${booking ? 'has-booking' : ''}`} key={time}><time>{time}</time><div className="agenda-slot">{booking ? <article className={`agenda-appointment ${bookingIndex % 3 === 1 ? 'appointment-violet' : bookingIndex % 3 === 2 ? 'appointment-green' : ''}`}><span><b>{booking.client}</b><small>{booking.service} · {booking.duration}</small></span><span className="appointment-staff">{booking.staff.split(' ')[0]}</span><button className={`status-pill ${statusClass(booking.status)}`} onClick={() => onStatus(booking)}>{booking.status}<ChevronDown size={12}/></button></article> : <button className="agenda-empty-slot" onClick={onNew}>+ adicionar horário</button>}</div></div>; })}</div><div className="agenda-legend"><span><i className="legend-confirmed"/> Confirmado</span><span><i className="legend-progress"/> Em atendimento</span><span><i className="legend-open"/> Disponível</span></div></section><p className="demo-inline-note"><Sparkles size={14}/> Os horários e nomes exibidos são exemplos para demonstração.</p>
-  </div>;
-}
-
-function ClientsView({ clients, query, setQuery, tab, setTab, onNew, onSelect }: { clients: typeof initialClients; query: string; setQuery: (value: string) => void; tab: string; setTab: (value: string) => void; onNew: () => void; onSelect: (client: typeof initialClients[number]) => void }) {
-  const tabs = ['Todos', 'Recorrentes', 'Recentes'];
-  const filtered = tab === 'Recorrentes' ? clients.filter((client) => client.visits >= 8) : tab === 'Recentes' ? clients.filter((client) => client.last === 'Hoje') : clients;
-  return <><div className="client-summary-row"><div className="client-summary"><span className="metric-symbol lavender"><UsersRound size={18}/></span><span><small>Base demonstrativa</small><b>248 clientes</b></span></div><div className="client-summary"><span className="metric-symbol green"><Heart size={18}/></span><span><small>Clientes recorrentes</small><b>72% retornaram</b></span></div><div className="client-summary"><span className="metric-symbol copper"><Sparkles size={18}/></span><span><small>Novos neste mês</small><b>18 clientes</b></span></div></div><section className="workspace-card client-table-card"><div className="list-toolbar"><div className="list-tabs">{tabs.map((item) => <button className={tab === item ? 'active' : ''} key={item} onClick={() => setTab(item)}>{item}</button>)}</div><label className="workspace-search"><Search size={16}/><input placeholder="Buscar nome ou telefone" value={query} onChange={(event) => setQuery(event.target.value)}/></label></div><div className="clients-table-wrap"><table className="workspace-table"><thead><tr><th>CLIENTE</th><th>ÚLTIMA VISITA</th><th>ATENDIMENTOS</th><th>MAIS GOSTA DE</th><th>VALOR NO EXEMPLO</th><th/></tr></thead><tbody>{filtered.map((client) => <tr key={client.name} onClick={() => onSelect(client)}><td><span className={`table-avatar ${client.color}`}>{client.initials}</span><span className="table-person"><b>{client.name}</b><small>{client.phone}</small></span></td><td>{client.last}</td><td><b>{client.visits}</b></td><td>{client.favorite}</td><td><b>{brl(client.total)}</b></td><td><button className="row-more" aria-label="Ver perfil"><ArrowRight size={16}/></button></td></tr>)}</tbody></table>{filtered.length === 0 && <div className="table-empty">Nenhum exemplo encontrado para esta busca.</div>}</div><div className="table-footnote">Mostrando {filtered.length} de {clients.length} exemplos</div></section></>;
-}
-
-function ServicesView({ onNew, onFeedback }: { onNew: () => void; onFeedback: (message: string) => void }) {
-  const [category, setCategory] = useState('Todos');
-  const cats = ['Todos', 'Cabelo', 'Barba', 'Unhas', 'Estética'];
-  const list = category === 'Todos' ? services : services.filter((service) => service.category === category);
-  return <><div className="services-topline"><div className="service-stat"><small>Serviços ativos</small><b>12</b><span>em 5 categorias</span></div><div className="service-stat"><small>Valor médio</small><b>R$ 89</b><span>por serviço demonstrativo</span></div><div className="service-stat"><small>Duração média</small><b>52 min</b><span>por atendimento</span></div><div className="service-stat service-stat-action"><button className="workspace-primary-button" onClick={onNew}><Plus size={16}/> Novo serviço</button></div></div><div className="list-toolbar services-toolbar"><div className="list-tabs">{cats.map((item) => <button key={item} className={category === item ? 'active' : ''} onClick={() => setCategory(item)}>{item}</button>)}</div><button className="workspace-secondary-button" onClick={() => onFeedback('Lista demonstrativa preparada para exportação.')}><Download size={15}/> Exportar</button></div><div className="service-card-grid">{list.map((service) => <article className="workspace-card service-card" key={service.name}><div className="service-card-icon"><Scissors size={18}/></div><div className="service-card-top"><span className="service-category">{service.category}</span><button className="row-more" aria-label="Opções do serviço" onClick={() => onFeedback(`Opções de ${service.name} na demonstração.`)}><MoreHorizontal size={18}/></button></div><h3>{service.name}</h3><p>Realizado por {service.pros}</p><div className="service-details"><span><Clock3 size={14}/>{service.duration}</span><b>{brl(service.price)}</b></div><div className="service-card-foot"><span><i/> Ativo</span><button onClick={() => onFeedback(`Edição demonstrativa: ${service.name}`)}>Editar</button></div></article>)}</div><p className="demo-inline-note"><Sparkles size={14}/> Preços e serviços usados apenas para apresentar a interface.</p></>;
-}
-
-function TeamView({ onNew, onFeedback }: { onNew: () => void; onFeedback: (message: string) => void }) {
-  return <><div className="team-highlight-row"><div><span>Equipe demonstrativa</span><b>3 profissionais</b></div><div><span>Atendimentos de hoje</span><b>15 exemplos</b></div><div><span>Comissões no período</span><b>R$ 1.284,50</b></div><button className="workspace-primary-button" onClick={onNew}><Plus size={16}/> Adicionar profissional</button></div><div className="team-card-grid">{professionals.map((pro, i) => <article className="workspace-card team-card" key={pro.name}><div className="team-card-top"><span className={`team-avatar ${pro.color}`}>{pro.initials}</span><button className="row-more" onClick={() => onFeedback(`Perfil de ${pro.name} na demonstração.`)} aria-label="Mais opções"><MoreHorizontal size={18}/></button></div><h3>{pro.name}</h3><p>{pro.role}</p><div className="team-service-tags">{pro.services.split(' · ').map((service) => <span key={service}>{service}</span>)}</div><div className="team-stats"><span><small>Agenda hoje</small><b>{pro.today} atendimentos</b></span><span><small>Comissão exemplo</small><b>{pro.commission}</b></span></div><button className="team-profile-button" onClick={() => onFeedback(`Detalhes de ${pro.name} demonstrativos.`)}>Ver perfil <ArrowRight size={15}/></button></article>)}</div><section className="workspace-card commission-example"><div><span className="eyebrow">EXEMPLO DE REGRA</span><h3>Comissões configuráveis por serviço</h3><p>Os percentuais abaixo são ilustrativos. A regra pode variar por profissional ou atendimento.</p></div><div className="commission-rule"><span>Serviços de cabelo</span><b>40%</b></div><div className="commission-rule"><span>Serviços de unha</span><b>40%</b></div><div className="commission-rule"><span>Barba e acabamento</span><b>45%</b></div></section></>;
-}
-
-function FinanceView({ period, setPeriod, onNew }: { period: string; setPeriod: (value: string) => void; onNew: () => void }) {
-  return <><div className="finance-toolbar"><div className="list-tabs"><button className="active">Visão geral</button><button onClick={onNew}>Movimentações</button><button onClick={onNew}>Despesas</button></div><select value={period} onChange={(event) => setPeriod(event.target.value)} aria-label="Período financeiro"><option>Este mês</option><option>Últimos 30 dias</option><option>Esta semana</option></select></div><div className="demo-data-caption"><Sparkles size={14}/> Valores demonstrativos; não são dados financeiros reais.</div><div className="finance-metrics"><MetricCard icon={<ArrowDownLeft size={18}/>} label="Receitas registradas" value="R$ 7.840" change="52 lançamentos" caption="exemplo de outubro" tone="green"/><MetricCard icon={<CreditCard size={18}/>} label="Despesas pagas" value="R$ 2.160" change="14 lançamentos" caption="exemplo de outubro" tone="copper"/><MetricCard icon={<Clock3 size={18}/>} label="A receber" value="R$ 385" change="4 pendentes" caption="pagamentos demonstrativos" tone="lavender"/><MetricCard icon={<Activity size={18}/>} label="Saldo estimado" value="R$ 5.680" change="Receitas − despesas" caption="não equivale a lucro" tone="blue"/></div><section className="workspace-card finance-chart-card"><div className="card-heading"><div><h3>Entradas e despesas</h3><p>Valores de exemplo · separados por categoria</p></div><div className="chart-legend"><span><i className="legend-entry"/> Entradas</span><span><i className="legend-expense"/> Despesas</span></div></div><div className="finance-bars">{[['01–05',75,32],['06–10',54,43],['11–15',88,38],['16–20',62,31],['21–25',96,45],['26–31',72,28]].map(([label, income, expense]) => <div className="finance-bar-group" key={String(label)}><div className="finance-bar-pair"><i style={{ height: `${income}%` }}/><i style={{ height: `${expense}%` }}/></div><span>{label}</span></div>)}</div></section><section className="workspace-card transactions-card"><div className="card-heading"><div><h3>Movimentações recentes</h3><p>Lançamentos demonstrativos da operação</p></div><button className="workspace-secondary-button" onClick={onNew}><Plus size={15}/> Lançar</button></div><div className="transaction-list">{transactions.map((item) => <div className="transaction-row" key={item.title}><span className={`transaction-icon ${item.kind}`}><ArrowDownLeft size={16}/></span><span className="transaction-desc"><b>{item.title}</b><small>{item.category} · {item.date}</small></span><span className="transaction-method">{item.method}</span><b className={item.kind === 'in' ? 'transaction-positive' : 'transaction-negative'}>{item.kind === 'in' ? '+' : '−'}{brl(Math.abs(item.value))}</b></div>)}</div></section><p className="finance-separation-note">Receita, recebimento, saldo de caixa e lucro são conceitos diferentes. Os totais desta tela servem apenas como exemplo visual.</p></>;
-}
-
-function SettingsView({ shopName, onSave }: { shopName: string; onSave: () => void }) {
-  const [tab, setTab] = useState('Estabelecimento');
-  const tabs = ['Estabelecimento', 'Horários', 'Serviços', 'Equipe', 'Demonstração'];
-  return <div className="settings-workspace"><aside className="settings-tabs">{tabs.map((item) => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item}<ChevronRight size={15}/></button>)}</aside><section className="workspace-card settings-panel"><div className="settings-panel-heading"><span className="settings-icon"><Settings size={19}/></span><div><h3>{tab}</h3><p>{tab === 'Demonstração' ? 'Controle as preferências locais desta experiência.' : 'Informações demonstrativas do seu espaço.'}</p></div></div>{tab === 'Horários' ? <div className="hours-list">{['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo'].map((day, i) => <div key={day}><b>{day}</b><span>{i === 6 ? 'Fechado' : '09:00 — 19:00'}</span><button className="toggle-switch on" aria-label={`Alternar ${day}`}><i/></button></div>)}</div> : tab === 'Equipe' ? <div className="settings-inline-list">{professionals.map((pro) => <span key={pro.name}><i className={`staff-dot ${pro.color}`}/>{pro.name}<small>{pro.role}</small></span>)}</div> : tab === 'Serviços' ? <div className="settings-inline-list">{services.slice(0, 4).map((service) => <span key={service.name}><Scissors size={15}/>{service.name}<small>{brl(service.price)}</small></span>)}</div> : tab === 'Demonstração' ? <div className="demo-preferences"><div><b>Dados de exemplo</b><p>Informações e indicadores fictícios para apresentação.</p><span className="demo-badge"><i/> Ativos nesta experiência</span></div><button className="toggle-switch on" aria-label="Alternar dados de exemplo"><i/></button></div> : <div className="settings-form-grid"><label>Nome do espaço<input defaultValue={shopName}/></label><label>Segmento principal<select defaultValue="Espaço de beleza"><option>Espaço de beleza</option><option>Barbearia</option><option>Salão de beleza</option><option>Unhas e nail design</option><option>Estética não médica</option></select></label><label>Telefone<input defaultValue="(11) 3456-7890"/></label><label>E-mail de contato<input defaultValue="contato@exemplo.com"/></label><label className="settings-full">Descrição curta<textarea defaultValue="Um espaço dedicado a cuidar de cada cliente com atenção."/></label></div>}<div className="settings-save-row"><span>Alterações nesta tela são apenas locais nesta demonstração.</span><button className="workspace-primary-button" onClick={onSave}><Check size={15}/> Salvar alterações</button></div></section></div>;
-}
-
-function AppointmentsView({ bookings, onAction }: { bookings: Booking[]; onAction: () => void }) {
-  const [filter, setFilter] = useState('Todos');
-  const filters = ['Todos', 'Agendado', 'Confirmado', 'Em atendimento', 'Concluído'];
-  const filtered = filter === 'Todos' ? bookings : bookings.filter((booking) => booking.status === filter);
-  const count = (status: string) => bookings.filter((booking) => booking.status === status).length;
-  return <>
-    <div className="demo-data-caption"><Sparkles size={14}/> Atendimentos e horários de exemplo. Nenhuma etapa altera um atendimento real.</div>
-    <div className="appointment-status-summary"><div><span className="status-summary-dot scheduled"/><small>Agendados</small><b>{count('Agendado')}</b></div><div><span className="status-summary-dot confirmed"/><small>Confirmados</small><b>{count('Confirmado')}</b></div><div><span className="status-summary-dot progress"/><small>Em atendimento</small><b>{count('Em atendimento')}</b></div><div><span className="status-summary-dot done"/><small>Concluídos</small><b>{count('Concluído')}</b></div></div>
-    <section className="workspace-card appointments-board"><div className="appointments-board-head"><div><h3>Atendimentos de hoje</h3><p>29 de outubro · agenda demonstrativa</p></div><span><Clock3 size={14}/> Horário local</span></div><div className="appointment-filter-tabs">{filters.map((item) => <button key={item} className={filter === item ? 'active' : ''} onClick={() => setFilter(item)}>{item}<small>{item === 'Todos' ? bookings.length : count(item)}</small></button>)}</div><div className="appointments-demo-list">{filtered.map((booking, index) => <article className="appointment-demo-row" key={`${booking.time}-${booking.client}`}><div className="appointment-demo-time"><b>{booking.time}</b><span>{booking.duration}</span></div><div className={`appointment-demo-rail rail-${statusClass(booking.status).replace('status-', '')}`}><i/></div><div className="appointment-demo-main"><div className="appointment-demo-title"><div><span className="appointment-demo-client"><UserRound size={14}/>{booking.client}</span><b>{booking.service}</b></div><span className={`status-pill ${statusClass(booking.status)}`}>{booking.status}</span></div><div className="appointment-demo-details"><span><Scissors size={13}/>{booking.staff}</span><b>{brl(booking.price)} <small>valor de exemplo</small></b></div><div className="appointment-step-track"><span className={['Agendado','Confirmado','Em atendimento','Concluído'].indexOf(booking.status) >= 0 ? 'reached' : ''}/><span className={['Confirmado','Em atendimento','Concluído'].includes(booking.status) ? 'reached' : ''}/><span className={['Em atendimento','Concluído'].includes(booking.status) ? 'reached' : ''}/><span className={booking.status === 'Concluído' ? 'reached' : ''}/><small>Agendado</small><small>Confirmado</small><small>Atendendo</small><small>Concluído</small></div></div><button className="workspace-secondary-button appointment-detail-button" onClick={onAction}>Ver detalhes</button></article>)}{filtered.length === 0 && <div className="table-empty">Não há atendimentos neste status na demonstração.</div>}</div></section>
-  </>;
-}
-
-const returningClients = [
-  { name: 'Fernanda Alves', visits: 16, last: '32 dias', service: 'Manicure em gel', next: 'Manutenção sugerida', color: 'lavender' },
-  { name: 'Tiago Nunes', visits: 9, last: '44 dias', service: 'Corte + barba', next: 'Retorno fora do intervalo usual', color: 'blue' },
-  { name: 'Eduarda Ramos', visits: 7, last: '31 dias', service: 'Hidratação capilar', next: 'Revisar frequência de visitas', color: 'rose' },
-];
-
-function ReturnClientsView({ onAction }: { onAction: () => void }) {
-  const [filter, setFilter] = useState('Todos');
-  const visible = filter === 'Frequentes' ? returningClients.filter((client) => client.visits >= 9) : returningClients;
-  return <>
-    <div className="demo-data-caption"><Sparkles size={14}/> Lista de exemplo baseada em tempo desde a última visita. Os nomes e intervalos são fictícios.</div>
-    <div className="return-hero"><div><span className="return-hero-icon"><UsersRound size={18}/></span><span className="eyebrow">OPORTUNIDADES DE RETORNO · EXEMPLO</span><h2>Saiba quem pode estar na hora de voltar.</h2><p>Use a última visita e o serviço preferido como pistas para acompanhar seus clientes.</p></div><div className="return-hero-stat"><b>3</b><span>clientes nesta lista</span><small>dados demonstrativos</small></div></div>
-    <div className="return-kpis"><article><small>SEM VISITA HÁ 30+ DIAS</small><b>3 clientes</b><span>intervalo ilustrativo</span></article><article><small>COM HISTÓRICO DE RETORNO</small><b>2 clientes</b><span>visitas recorrentes · exemplo</span></article><article><small>PRÓXIMO PASSO</small><b>Acompanhar</b><span>nenhuma mensagem é enviada</span></article></div>
-    <section className="workspace-card return-clients-card"><div className="return-list-toolbar"><div><h3>Quem pode voltar</h3><p>Ordenado pelo tempo desde a última visita</p></div><div className="list-tabs">{['Todos','Frequentes'].map((item) => <button key={item} onClick={() => setFilter(item)} className={filter === item ? 'active' : ''}>{item}</button>)}</div></div><div className="return-client-list">{visible.map((client) => <article className="return-client-row" key={client.name}><span className={`table-avatar ${client.color}`}>{client.name.split(' ').map((part) => part[0]).slice(0,2).join('')}</span><div className="return-client-name"><b>{client.name}</b><small>{client.visits} atendimentos no histórico demonstrativo</small></div><div><small>Última visita</small><b>{client.last} atrás</b></div><div><small>Serviço preferido</small><b>{client.service}</b></div><span className="return-suggestion">{client.next}</span><button className="workspace-secondary-button" onClick={onAction}>Ver perfil</button></article>)}</div><p className="demo-inline-note"><Sparkles size={14}/> A lista ilustra como o sistema poderia ajudar a perceber intervalos de retorno.</p></section>
-  </>;
-}
-
-const loyaltyExamples = [
-  { name: 'Mariana Costa', visits: 4, target: 5, label: '1 visita para benefício de exemplo', color: 'rose' },
-  { name: 'Fernanda Alves', visits: 3, target: 5, label: '2 visitas para benefício de exemplo', color: 'lavender' },
-  { name: 'João Pedro Lima', visits: 2, target: 5, label: '3 visitas para benefício de exemplo', color: 'blue' },
-];
-
-function LoyaltyView({ onAction }: { onAction: () => void }) {
-  return <>
-    <div className="demo-data-caption"><Sparkles size={14}/> Exemplo visual de recorrência e benefícios. Nenhuma regra ou recompensa está ativa.</div>
-    <section className="loyalty-hero"><div><span className="loyalty-mark"><Gift size={20}/></span><span className="eyebrow">IDEIA DE FIDELIZAÇÃO · DEMONSTRAÇÃO</span><h2>Reconheça quem escolhe voltar.</h2><p>Visualize a frequência de visitas e pense em benefícios que façam sentido para o seu espaço.</p><button className="workspace-secondary-button" onClick={onAction}>Ver exemplo de regra</button></div><div className="loyalty-rule-card"><small>EXEMPLO DE PROGRESSO</small><b>5 visitas</b><span>poderiam liberar um benefício</span><div className="loyalty-five-dots">{[1,2,3,4,5].map((number) => <i className={number <= 3 ? 'filled' : ''} key={number}>{number <= 3 ? <Check size={12}/> : number}</i>)}</div><em>Esta regra é apenas ilustrativa</em></div></section>
-    <div className="loyalty-stats"><MetricCard icon={<UsersRound size={18}/>} label="Clientes recorrentes" value="72%" change="exemplo" caption="indicador ilustrativo" tone="lavender"/><MetricCard icon={<Sparkles size={18}/>} label="Visitas acompanhadas" value="48" change="no período" caption="dados fictícios" tone="copper"/><MetricCard icon={<Gift size={18}/>} label="Benefícios de exemplo" value="12" change="não resgatáveis" caption="nenhuma regra está ativa" tone="green"/></div>
-    <section className="workspace-card loyalty-client-card"><div className="card-heading"><div><h3>Frequência de visitas</h3><p>Exemplos para visualizar a jornada de retorno</p></div><span className="demo-badge"><i/> Demonstração</span></div><div className="loyalty-client-list">{loyaltyExamples.map((client) => <article key={client.name}><span className={`table-avatar ${client.color}`}>{client.name.split(' ').map((part) => part[0]).slice(0,2).join('')}</span><div className="loyalty-client-name"><b>{client.name}</b><small>{client.label}</small></div><div className="loyalty-progress" aria-label={`${client.visits} de ${client.target} visitas`}><span style={{ width: `${client.visits / client.target * 100}%` }}/></div><b className="loyalty-count">{client.visits}/{client.target}</b><button className="row-more" onClick={onAction} aria-label="Ver exemplo de cliente"><ArrowRight size={16}/></button></article>)}</div></section>
-  </>;
-}
-
-const inventoryExamples = [
-  { name: 'Shampoo profissional', category: 'Cabelo', quantity: 8, minimum: 5, unit: 'unidades' },
-  { name: 'Óleo para barba', category: 'Barba', quantity: 3, minimum: 4, unit: 'unidades' },
-  { name: 'Esmalte em gel · Nude', category: 'Unhas', quantity: 14, minimum: 6, unit: 'unidades' },
-  { name: 'Máscara hidratante', category: 'Tratamento', quantity: 2, minimum: 5, unit: 'unidades' },
-];
-
-function InventoryView({ onAction }: { onAction: () => void }) {
-  const lowStock = inventoryExamples.filter((item) => item.quantity <= item.minimum).length;
-  return <>
-    <div className="demo-data-caption"><Sparkles size={14}/> Produtos, quantidades e alertas fictícios para demonstrar o controle visual do estoque.</div>
-    <div className="inventory-summary"><MetricCard icon={<Package size={18}/>} label="Produtos no exemplo" value="4" change="em 4 categorias" caption="cadastro demonstrativo" tone="lavender"/><MetricCard icon={<TriangleAlert size={18}/>} label="Abaixo do mínimo" value={String(lowStock)} change="itens para revisar" caption="alerta ilustrativo" tone="copper"/><MetricCard icon={<Activity size={18}/>} label="Categorias" value="4" change="organização de exemplo" caption="Cabelo, barba, unhas e tratamento" tone="green"/></div>
-    <section className="workspace-card inventory-board"><div className="inventory-board-heading"><div><h3>Produtos do espaço</h3><p>Compare a quantidade disponível com o mínimo indicado no exemplo.</p></div><span className="inventory-alert"><TriangleAlert size={15}/>{lowStock} itens precisam de atenção</span></div><div className="inventory-product-list">{inventoryExamples.map((item) => { const low = item.quantity <= item.minimum; const percent = Math.min(100, item.quantity / Math.max(item.minimum * 2, item.quantity) * 100); return <article className="inventory-product-row" key={item.name}><span className={`inventory-product-icon ${low ? 'low' : ''}`}><Package size={17}/></span><div className="inventory-product-name"><b>{item.name}</b><small>{item.category} · produto de demonstração</small></div><div className="inventory-level"><div><small>DISPONÍVEL</small><b className={low ? 'inventory-low-text' : ''}>{item.quantity} <span>{item.unit}</span></b></div><div className="inventory-stock-bar"><i className={low ? 'low' : ''} style={{ width: `${percent}%` }}/></div></div><div className="inventory-minimum"><small>MÍNIMO</small><b>{item.minimum} {item.unit}</b></div><span className={`inventory-status ${low ? 'low' : ''}`}>{low ? <><TriangleAlert size={13}/> Repor</> : <><CircleCheck size={13}/> Em dia</>}</span><button className="row-more" onClick={onAction} aria-label={`Ver exemplo de ${item.name}`}><MoreHorizontal size={17}/></button></article>; })}</div><div className="inventory-board-footer">Todos os níveis exibidos são exemplos; nenhuma movimentação de estoque está habilitada.</div></section>
-  </>;
-}
-
-function ReportsView() {
-  const serviceRanking = [{ name: 'Corte + escova', value: 'R$ 2.320', width: '88%' }, { name: 'Manicure em gel', value: 'R$ 1.710', width: '68%' }, { name: 'Corte clássico', value: 'R$ 1.365', width: '54%' }, { name: 'Hidratação capilar', value: 'R$ 960', width: '38%' }];
-  return <>
-    <div className="demo-data-caption"><Sparkles size={14}/> Indicadores, períodos e valores abaixo são exemplos e não representam o resultado de um negócio real.</div>
-    <div className="reports-filter-bar"><div><span className="eyebrow">RESUMO DA OPERAÇÃO</span><b>Outubro de 2026</b></div><select aria-label="Período do relatório" defaultValue="Este mês"><option>Este mês</option><option>Últimos 30 dias</option><option>Esta semana</option></select></div>
-    <div className="reports-metrics"><MetricCard icon={<CreditCard size={18}/>} label="Receita registrada" value="R$ 7.840" change="exemplo" caption="valores demonstrativos" tone="copper"/><MetricCard icon={<CalendarDays size={18}/>} label="Atendimentos concluídos" value="86" change="no período" caption="contagem ilustrativa" tone="lavender"/><MetricCard icon={<UsersRound size={18}/>} label="Clientes que retornaram" value="72%" change="indicador exemplo" caption="não representa resultado real" tone="green"/><MetricCard icon={<TrendingUp size={18}/>} label="Valor médio" value="R$ 86" change="por atendimento" caption="cálculo demonstrativo" tone="blue"/></div>
-    <div className="reports-visual-grid"><section className="workspace-card report-revenue-card"><div className="card-heading"><div><h3>Receita ao longo do mês</h3><p>Curva ilustrativa · outubro 2026</p></div><span className="report-legend"><i/> Exemplo</span></div><div className="report-chart"><div className="report-chart-guides"><i/><i/><i/><i/></div><svg viewBox="0 0 700 220" preserveAspectRatio="none" aria-label="Gráfico ilustrativo de receita mensal"><defs><linearGradient id="report-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#b85d33" stopOpacity=".2"/><stop offset="1" stopColor="#b85d33" stopOpacity="0"/></linearGradient></defs><path d="M0 175 C60 158 80 160 120 138 S190 148 230 118 S300 128 350 92 S425 120 470 76 S535 99 580 59 S650 70 700 28 L700 220 L0 220 Z" fill="url(#report-fill)"/><path d="M0 175 C60 158 80 160 120 138 S190 148 230 118 S300 128 350 92 S425 120 470 76 S535 99 580 59 S650 70 700 28" fill="none" stroke="#a64f2d" strokeWidth="3" strokeLinecap="round"/></svg><div className="report-chart-labels"><span>01 out</span><span>08 out</span><span>15 out</span><span>22 out</span><span>29 out</span></div></div></section>
-      <section className="workspace-card report-ranking-card"><div className="card-heading"><div><h3>Serviços em destaque</h3><p>Receita por serviço · exemplo</p></div></div><div className="report-service-ranking">{serviceRanking.map((service, index) => <div className="report-service-row" key={service.name}><span className="report-ranking-number">0{index + 1}</span><div><span><b>{service.name}</b><strong>{service.value}</strong></span><i><em style={{ width: service.width }}/></i></div></div>)}</div><div className="report-ranking-note">Comparativo visual com valores fictícios.</div></section></div>
-    <section className="workspace-card report-attendance-card"><div className="card-heading"><div><h3>Atendimentos por semana</h3><p>Volume ilustrativo · não equivale a ocupação real</p></div><span className="report-legend"><i/> Atendimentos de exemplo</span></div><div className="report-week-bars">{[['01–07',52],['08–14',68],['15–21',44],['22–28',84],['29–31',34]].map(([label, value]) => <div key={String(label)}><span className="report-week-bar"><i style={{ height: `${value}%` }}/></span><small>{label}</small></div>)}</div></section>
-  </>;
-}
-
-function GenericView({ moduleKey, query, setQuery, onNew, onFeedback }: { moduleKey: string; query: string; setQuery: (value: string) => void; onNew: () => void; onFeedback: (message: string) => void }) {
-  const titles: Record<string, string[]> = { atendimentos: ['Cliente', 'Serviço', 'Profissional', 'Horário', 'Status'], fila: ['Cliente', 'Serviço', 'Preferência', 'Chegada', 'Espera'], recuperacao: ['Cliente', 'Última visita', 'Serviço favorito', 'Sugestão'], fidelizacao: ['Cliente', 'Visitas', 'Benefício', 'Próximo passo'], estoque: ['Produto', 'Categoria', 'Quantidade', 'Mínimo', 'Status'], relatorios: ['Indicador', 'Período', 'Resultado de exemplo', 'Variação'], notificacoes: ['Modelo', 'Canal', 'Finalidade', 'Status'], comissoes: ['Profissional', 'Atendimentos', 'Base demonstrativa', 'Comissão'], alertas: ['Aviso', 'Detalhe', 'Prioridade'], metas: ['Objetivo', 'Alvo demonstrativo', 'Progresso'] };
-  const rows: Record<string, string[][]> = { atendimentos: [['Mariana Costa','Corte + escova','Camila Rocha','09:00','Concluído'],['João Pedro Lima','Corte clássico','Rafael Martins','10:30','Em atendimento'],['Fernanda Alves','Manicure em gel','Bruna Nascimento','11:00','Agendado']], fila: [['Pedro Henrique','Corte clássico','Rafael','10:45','15 min'],['Letícia Freitas','Manicure','Bruna','11:10','25 min']], recuperacao: [['Eduarda Ramos','28 set, 2026','Hidratação','Sugerir retorno'],['Tiago Nunes','15 set, 2026','Corte + barba','Revisar frequência']], fidelizacao: [['Fernanda Alves','16 visitas','5ª visita com benefício','Próximo atendimento'],['Mariana Costa','12 visitas','Benefício disponível','Resgatar']], estoque: [['Shampoo profissional','Cabelo','8 un.','5 un.','Em dia'],['Óleo para barba','Barba','3 un.','4 un.','Repor'],['Esmalte em gel','Unhas','14 un.','6 un.','Em dia']], relatorios: [['Receita registrada','Outubro 2026','R$ 7.840','+12,8%'],['Atendimentos concluídos','Outubro 2026','86','+8,2%'],['Valor médio','Outubro 2026','R$ 86','+6,2%']], notificacoes: [['Confirmação de horário','WhatsApp','Uso manual','Rascunho'],['Lembrete no dia','WhatsApp','Uso manual','Rascunho']], comissoes: [['Camila Rocha','24','R$ 2.610','R$ 1.044'],['Rafael Martins','31','R$ 2.890','R$ 1.300,50'],['Bruna Nascimento','18','R$ 1.920','R$ 768']], alertas: [['Estoque baixo','Óleo para barba abaixo do mínimo','Atenção'],['Horário sem confirmação','2 atendimentos aguardam retorno','Informativo']], metas: [['Atendimentos no mês','100','86 de 100','86%'],['Clientes que retornam','75%','72%','96%'] ] };
-  const source = rows[moduleKey] ?? rows.atendimentos;
-  const filtered = source.filter((row) => row.join(' ').toLowerCase().includes(query.toLowerCase()));
-  const columns = titles[moduleKey] ?? titles.atendimentos;
-  return <><div className="generic-summary-grid"><div><small>Período da demonstração</small><b>Outubro 2026</b></div><div><small>Registros ilustrativos</small><b>{source.length} itens</b></div><div><small>Atualização</small><b>Exemplo local</b></div></div><section className="workspace-card generic-table-card"><div className="list-toolbar"><label className="workspace-search"><Search size={16}/><input placeholder="Pesquisar exemplos" value={query} onChange={(event) => setQuery(event.target.value)}/></label><div className="generic-actions"><select aria-label="Período"><option>Este mês</option><option>Últimos 30 dias</option></select>{pageInfo[moduleKey]?.action && <button className="workspace-primary-button compact" onClick={onNew}><Plus size={15}/>{pageInfo[moduleKey].action}</button>}</div></div><div className="clients-table-wrap"><table className="workspace-table"><thead><tr>{columns.map((column) => <th key={column}>{column.toUpperCase()}</th>)}<th/></tr></thead><tbody>{filtered.map((row, i) => <tr key={`${row[0]}-${i}`}><td><b>{row[0]}</b></td>{row.slice(1).map((item, index) => <td key={index}>{item}</td>)}<td><button className="row-more" onClick={() => onFeedback('Ação apenas demonstrativa.')} aria-label="Mais ações"><MoreHorizontal size={17}/></button></td></tr>)}</tbody></table>{filtered.length === 0 && <div className="table-empty">Nenhum exemplo encontrado.</div>}</div><div className="table-footnote">Registros fictícios apresentados para demonstrar esta tela.</div></section><p className="demo-inline-note"><Sparkles size={14}/> Nenhuma mensagem é enviada e nenhuma movimentação real é executada.</p></>;
-}
-
-function ClientDrawer({ client, onClose }: { client: typeof initialClients[number]; onClose: () => void }) {
-  return <div className="drawer-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><aside className="client-drawer"><div className="drawer-heading"><span>PERFIL DEMONSTRATIVO</span><button className="workspace-icon-button" onClick={onClose} aria-label="Fechar"><X size={18}/></button></div><div className="drawer-profile"><span className={`drawer-avatar ${client.color}`}>{client.initials}</span><h2>{client.name}</h2><p>{client.phone}</p><button className="workspace-secondary-button"><UsersRound size={15}/> Editar cliente</button></div><div className="drawer-stats"><span><small>Visitas</small><b>{client.visits}</b></span><span><small>Valor acumulado (exemplo)</small><b>{brl(client.total)}</b></span></div><section className="drawer-section"><h3>Preferências</h3><div className="preference-note"><Sparkles size={16}/>{client.favorite}</div><p>Preferências e histórico são exemplos para demonstrar a experiência.</p></section><section className="drawer-section"><h3>Histórico de atendimentos</h3>{[['29 out, 2026 · 09:00','Corte + escova',145],['12 out, 2026 · 14:30','Hidratação capilar',120],['27 set, 2026 · 11:00','Corte clássico',65]].map((item) => <div className="history-item" key={String(item[0])}><span><b>{item[1]}</b><small>{item[0]}</small></span><b>{brl(Number(item[2]))}</b></div>)}</section><span className="drawer-demo-note"><Sparkles size={14}/> Dados fictícios para demonstração.</span></aside></div>;
-}
-
-function DemoModal({ title, onClose, onSubmit }: { title: string; onClose: () => void; onSubmit: (event: React.FormEvent<HTMLFormElement>) => void }) {
-  const isClient = title === 'Novo cliente';
-  const isBooking = title === 'Novo agendamento';
-  return <div className="drawer-backdrop modal-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="demo-modal" role="dialog" aria-modal="true" aria-label={title}><header><div><span className="workspace-date-label">DEMONSTRAÇÃO · DADOS DE EXEMPLO</span><h2>{title}</h2><p>Este formulário não grava informações em uma conta real.</p></div><button className="workspace-icon-button" onClick={onClose} aria-label="Fechar"><X size={18}/></button></header><form onSubmit={onSubmit} className="demo-form"><label>{isClient ? 'Nome completo' : isBooking ? 'Nome do cliente' : 'Nome'}<input name="name" placeholder={isClient ? 'Ex.: Ana Souza' : 'Digite um nome de exemplo'} required minLength={2}/></label>{(isClient || isBooking) && <label>Telefone<input name="phone" type="tel" placeholder="(11) 99999-9999" required={isClient}/></label>}{isBooking && <div className="demo-form-row"><label>Serviço<select name="service" defaultValue="Corte clássico">{services.map((service) => <option key={service.name}>{service.name}</option>)}</select></label><label>Profissional<select name="staff" defaultValue="Camila Rocha">{professionals.map((pro) => <option key={pro.name}>{pro.name}</option>)}</select></label><label>Data<input name="date" type="date" defaultValue="2026-10-29"/></label><label>Horário<input name="time" type="time" defaultValue="16:30"/></label><label>Valor ilustrativo<input name="price" type="number" min="0" defaultValue="80"/></label></div>}{!isClient && !isBooking && <><label>Descrição<input name="description" placeholder="Informe detalhes para a demonstração"/></label><label>Categoria<select name="category"><option>Serviços</option><option>Cabelo</option><option>Unhas</option><option>Estética</option><option>Outros</option></select></label></>}<div className="demo-modal-note"><Sparkles size={15}/> Os dados são temporários e só aparecem nesta demonstração.</div><div className="demo-modal-actions"><button type="button" className="workspace-secondary-button" onClick={onClose}>Cancelar</button><button type="submit" className="workspace-primary-button"><Check size={16}/> Adicionar exemplo</button></div></form></section></div>;
-}
-
-function ActivityItem({ icon, text, detail, tone }: { icon: React.ReactNode; text: React.ReactNode; detail: string; tone: string }) {
-  return <div className="activity-item"><span className={`activity-icon ${tone}`}>{icon}</span><span><b>{text}</b><small>{detail}</small></span><time>Hoje</time></div>;
-}
-
-function statusClass(status: string) {
-  if (status === 'Concluído') return 'status-done';
-  if (status === 'Em atendimento') return 'status-progress';
-  if (status === 'Agendado') return 'status-scheduled';
-  return 'status-confirmed';
 }

@@ -44,7 +44,12 @@ export async function createBarbershop(form: FormData) {
   if (shopName.length < 2 || ownerName.length < 2) redirect('/painel?erro=Informe+seu+nome+e+o+nome+da+barbearia.');
   const openTime = value(form, 'opening_time'), closeTime = value(form, 'closing_time');
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(openTime) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(closeTime) || openTime >= closeTime) redirect('/painel?erro=Confira+o+horario+de+abertura+e+fechamento.');
-  const { data, error } = await supabase.rpc('bootstrap_barbershop', { shop_name: shopName, shop_slug: `${slugify(shopName)}-${crypto.randomUUID().slice(0, 5)}`, shop_phone: value(form, 'phone'), shop_address: value(form, 'address'), owner_name: ownerName, open_time: openTime, close_time: closeTime });
+  const phone = value(form, 'phone'), phoneDigits = phone.replace(/\D/g, '');
+  if (phoneDigits.length < 10 || phoneDigits.length > 13) redirect('/painel?erro=Informe+o+telefone+com+DDD.');
+  const openDays = form.getAll('open_days').map(String).filter((d) => ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].includes(d));
+  if (!openDays.length) redirect('/painel?erro=Selecione+os+dias+de+funcionamento.');
+  // Versão de 9 argumentos (SECURITY DEFINER) existente no banco ao vivo; é idempotente por usuário.
+  const { data, error } = await supabase.rpc('bootstrap_barbershop', { shop_name: shopName, shop_slug: `${slugify(shopName) || 'negocio'}-${crypto.randomUUID().slice(0, 5)}`, shop_phone: phone, shop_address: value(form, 'address'), owner_name: ownerName, open_time: openTime, close_time: closeTime, business_kind: 'beauty', open_days: [...new Set(openDays)] });
   if (error || !data) redirect(`/painel?erro=${encodeURIComponent(error?.message ?? 'Não foi possível salvar.')}`);
   redirect('/painel?etapa=servicos');
 }
