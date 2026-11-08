@@ -1,20 +1,24 @@
-import type { Shop, WorkingHour } from './types';
+import type { DayHours, Shop } from './types';
 import { timeToMinutes } from '@/lib/time';
 
-const KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+/** Chaves de barbershops.opening_hours, indexadas por dia da semana (0 = domingo). */
+export const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 export type Interval = { start: number; end: number };
 
-/** Mesma regra de public._effective_hours: horário do profissional > horário geral > opening_hours. */
-export function effectiveHours(rows: WorkingHour[], shop: Shop, staffId: string | null, weekday: number): Interval[] {
-  const toIntervals = (list: WorkingHour[]) => list.filter((r) => r.weekday === weekday).map((r) => ({ start: timeToMinutes(r.start_time), end: timeToMinutes(r.end_time) })).sort((a, b) => a.start - b.start);
-  if (staffId) {
-    const own = rows.filter((r) => r.staff_id === staffId);
-    if (own.length) return toIntervals(own);
-  }
-  const general = rows.filter((r) => r.staff_id === null);
-  if (general.length) return toIntervals(general);
-  const day = shop.opening_hours?.[KEYS[weekday]];
-  if (!day || day.closed || !day.open || !day.close) return [];
+/**
+ * Horário de funcionamento do dia. No banco ao vivo a única fonte de horário é
+ * barbershops.opening_hours (o trigger enforce_appointment_schedule e as funções
+ * públicas usam só ela), então a agenda segue a mesma regra para todos os profissionais.
+ */
+export function dayHours(shop: Pick<Shop, 'opening_hours'>, weekday: number): DayHours | null {
+  const day = shop.opening_hours?.[DAY_KEYS[weekday]];
+  if (!day || day.closed || !day.open || !day.close) return null;
+  return day;
+}
+
+export function openIntervals(shop: Pick<Shop, 'opening_hours'>, weekday: number): Interval[] {
+  const day = dayHours(shop, weekday);
+  if (!day) return [];
   const start = timeToMinutes(day.open), end = timeToMinutes(day.close);
   return end > start ? [{ start, end }] : [];
 }

@@ -2,16 +2,25 @@
 
 Plataforma de gestão para barbearias, salões, trancistas, nail designers e outros profissionais de beleza.
 
-## O que já funciona com dados reais
+O app usa o schema que já existe no Supabase de produção (projeto `zsittjmnkjtqpgvrhskb`). Todas as leituras passam pelo RLS (membros em `barbershop_members`), as gravações ficam em Server Actions com validação no servidor e as regras de negócio usam as funções RPC do banco. Nada usa a service role.
 
-- **Painel** (`/painel`): onboarding, visão geral com números do dia.
-- **Agenda** (`/painel/agenda`): visão do dia (colunas por profissional) e da semana, novo agendamento, edição, mudança de status (agendado, confirmado, concluído, não compareceu) e cancelamento. O banco impede dois atendimentos sobrepostos para o mesmo profissional.
-- **Atendimentos** (`/painel/atendimentos`): lista do dia com filtro por status.
-- **Clientes** (`/painel/clientes`): lista, busca por nome/telefone, cadastro, edição, exclusão (quando não há histórico) e histórico de atendimentos.
-- **Serviços**, **Equipe** e **Horários** (`/painel/servicos`, `/painel/equipe`, `/painel/horarios`): CRUD completo; horários gerais da barbearia e, opcionalmente, horário próprio por profissional (com intervalo).
-- **Agendamento público** (`/b/<slug>`): sem login, o cliente escolhe serviço, profissional (ou “sem preferência”), dia e horário livre, informa nome e telefone e recebe a confirmação.
+## O que funciona com dados reais
 
-Fila de espera, fidelização, financeiro, estoque, relatórios e os demais módulos aparecem com o selo **Em breve** e não exibem dados fictícios.
+- **Onboarding** (`/painel`): `bootstrap_barbershop` (versão de 9 argumentos, telefone obrigatório e dias de funcionamento), serviços e `finish_onboarding`.
+- **Agenda** (`/painel/agenda`): dia (colunas por profissional) e semana. Novo agendamento via `create_internal_booking` (proprietário, gerente e recepção, com profissional: já abre a comanda) ou `create_admin_appointment` (profissional/barbeiro, serviço sem profissional ou data além de 60 dias). Edição direta em `appointments`, revalidada pelo trigger `enforce_appointment_schedule`.
+- **Atendimentos e comandas** (`/painel/atendimentos`): status via `update_appointment_status` (confirmar, iniciar, cancelar, não compareceu) e `advance_appointment` (concluir sem cobrança, reabrir). Comanda (`service_orders` / `service_order_items`): lançar e remover produtos, fechar com forma de pagamento via `close_service_order` (gera venda, lançamentos de caixa, baixa de estoque e comissão).
+- **Clientes**: `clients.full_name`, telefone obrigatório (`phone_normalized` único por negócio), consentimento de WhatsApp, histórico.
+- **Serviços**: categoria, duração, preço, “exige profissional”; cadastro de salas/recursos (`booking_resources`).
+- **Equipe**: funções e comissões de serviço e de produto.
+- **Horários**: `barbershops.opening_hours`, a mesma fonte usada pelo trigger e pelas funções públicas.
+- **Caixa e financeiro**: abertura/fechamento (`cash_sessions`), suprimento/sangria (`cash_transactions`), lançamentos (`cash_movements`), vendas do mês e taxas por forma de pagamento (`payment_fee_rates`).
+- **PDV**: venda de balcão via `register_pdv_sale`.
+- **Produtos e estoque**: `products` (quantidade, reservado em comandas, mínimo, disponível para o cliente).
+- **Comissões**: `commission_entries` (o profissional vê só as próprias pelo RLS).
+- **Central de alertas**: `central_alerts` (resolver, dispensar, reabrir, ativar alertas automáticos).
+- **Página pública** (`/b/<slug>`): `public_booking_catalog`, `public_booking_slots` e `create_public_booking` (versão `target_slug`, que também abre a comanda). Depois de agendar, o cliente recebe o link `/b/<slug>/comanda/<token>` (`public_order_details`, `add_public_order_item`, `remove_public_order_item`).
+
+Fila de espera, clientes para retornar, fidelização, relatórios, metas, mensagens/automações de WhatsApp e configurações aparecem com o selo **Em breve**, sem dados fictícios.
 
 ## Executar localmente
 
@@ -23,37 +32,12 @@ cp .env.example .env.local   # preencha NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_S
 pnpm dev
 ```
 
-A aplicação inicia em `http://localhost:3200`. Use apenas a chave pública (anon) do Supabase; nunca coloque a service role key no cliente.
+A aplicação inicia em `http://localhost:3200`. Use apenas a chave pública (anon) do Supabase.
 
-## Banco de dados (Supabase)
+## Banco de dados
 
-As migrations ficam em `supabase/migrations` e devem ser aplicadas **em ordem**:
+- `202610270001_foundation.sql`: histórico original (perfis, negócios, membros, serviços, equipe).
+- `202611080000_live_schema_snapshot.sql`: **fotografia do schema ao vivo, só documentação/baseline. Não aplique em produção.** É idempotente e serve para recriar um banco local equivalente (`supabase db reset`).
+- `202611080002_service_order_staff_ops.sql`: **migration aditiva pequena, para aplicar em produção.** Cria `open_service_order`, `add_service_order_item`, `remove_service_order_item` e `refresh_shop_alerts` (só `authenticated`, com checagem de papel). Sem ela, o app funciona, mas abrir comanda para agendamentos sem comanda, lançar ou remover produtos pela equipe e “Verificar agora” na central de alertas mostram um aviso pedindo a migration.
 
-1. `202610270001_foundation.sql` — perfis, barbearias, membros, serviços, equipe, RLS e funções de onboarding.
-2. `202611080001_agenda.sql` — horários de trabalho, clientes, agendamentos e as funções do agendamento público.
-
-### Com a Supabase CLI (recomendado)
-
-```sh
-supabase login
-supabase link --project-ref <seu-project-ref>
-supabase db push            # aplica as migrations pendentes
-```
-
-Para testar localmente antes: `supabase start` e depois `supabase db reset` (recria o banco local e aplica todas as migrations).
-
-### Pelo painel do Supabase
-
-Abra **SQL Editor**, cole o conteúdo de cada arquivo (na ordem acima) e execute. Rode cada migration uma única vez.
-
-### O que a migration da agenda cria
-
-- Extensão `btree_gist` (no schema `extensions`) para a restrição de não sobreposição.
-- Tabelas `working_hours`, `clients` e `appointments`, com RLS: membros da barbearia leem e escrevem clientes e agendamentos; só proprietário/gerente alteram horários e excluem agendamentos. O papel `anon` não tem acesso às tabelas.
-- `public.save_working_hours(target_shop, target_staff, days)` — usada pelo painel para salvar horários de forma atômica.
-- Funções públicas (`SECURITY DEFINER`, executáveis por `anon`), chamadas por RPC:
-  - `public_shop(p_slug)` — nome, contato, serviços ativos, equipe e horário de funcionamento.
-  - `public_available_slots(p_slug, p_service_id, p_staff_id, p_day)` — horários livres em passos de 30 minutos, até 60 dias à frente (`p_staff_id` nulo = qualquer profissional).
-  - `public_book(p_slug, p_service_id, p_staff_id, p_starts_at, p_client_name, p_client_phone)` — revalida o horário, cria/reaproveita o cliente pelo telefone e grava o agendamento com `source = 'public'`.
-
-A página pública só aparece para barbearias com o onboarding concluído. Enquanto não houver horários salvos em **Horários**, vale o horário informado no onboarding (`barbershops.opening_hours`).
+Para aplicar só a migration aditiva pelo painel do Supabase: **SQL Editor**, cole o conteúdo de `202611080002_service_order_staff_ops.sql` e execute (pode rodar mais de uma vez).

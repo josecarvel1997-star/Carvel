@@ -9,6 +9,10 @@ import ClientesView from './views/clientes';
 import ServicosView from './views/servicos';
 import EquipeView from './views/equipe';
 import HorariosView from './views/horarios';
+import FinanceiroView from './views/financeiro';
+import EstoqueView from './views/estoque';
+import ComissoesView from './views/comissoes';
+import AlertasView from './views/alertas';
 import ComingSoonView from './views/coming-soon';
 import MissingEnv from './views/missing-env';
 
@@ -33,7 +37,11 @@ export default async function ModulePage({ params, searchParams }: { params: Pro
     {modulo === 'clientes' && <ClientesView ctx={ctx} params={query}/>}
     {modulo === 'servicos' && <ServicosView ctx={ctx}/>}
     {modulo === 'equipe' && <EquipeView ctx={ctx}/>}
-    {modulo === 'horarios' && <HorariosView ctx={ctx} params={query}/>}
+    {modulo === 'horarios' && <HorariosView ctx={ctx}/>}
+    {modulo === 'financeiro' && <FinanceiroView ctx={ctx} params={query}/>}
+    {modulo === 'estoque' && <EstoqueView ctx={ctx}/>}
+    {modulo === 'comissoes' && <ComissoesView ctx={ctx} params={query}/>}
+    {modulo === 'alertas' && <AlertasView ctx={ctx} params={query}/>}
     {!real && <ComingSoonView title={info.title}/>}
   </PanelModule>;
 }

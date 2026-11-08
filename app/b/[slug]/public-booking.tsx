@@ -3,7 +3,9 @@
 import { useActionState, useEffect, useMemo, useState, useTransition } from 'react';
 import { ArrowLeft, ArrowRight, CalendarDays, Check, Clock3, MapPin, Phone, Scissors, Sparkles, UserRound } from 'lucide-react';
 import Brand from '@/app/components/brand';
+import Link from 'next/link';
 import { addDays, dateInZone, formatDate, timeInZone, todayInZone, weekdayOf, WEEKDAYS_SHORT } from '@/lib/time';
+import { dayHours } from '@/lib/panel/hours';
 import { bookPublic, getPublicSlots } from './actions';
 import type { BookingState, PublicShop, PublicSlot } from './types';
 
@@ -38,28 +40,29 @@ export default function PublicBooking({ shop }: { shop: PublicShop }) {
   const staffId = staffChoice === ANY ? '' : staffChoice;
   const staffName = staffChoice === ANY ? 'Sem preferência' : shop.staff.find((s) => s.id === staffChoice)?.display_name ?? '';
   const today = todayInZone(shop.timezone);
-  const openWeekdays = useMemo(() => new Set(shop.hours.map((h) => h.weekday)), [shop.hours]);
-  const days = useMemo(() => Array.from({ length: 21 }, (_, i) => addDays(today, i)), [today]);
-  const hoursByDay = useMemo(() => [0, 1, 2, 3, 4, 5, 6].map((wd) => shop.hours.filter((h) => h.weekday === wd).map((h) => `${h.start}–${h.end}`).join(', ')), [shop.hours]);
+  const hoursByDay = useMemo(() => [0, 1, 2, 3, 4, 5, 6].map((wd) => { const h = dayHours(shop, wd); return h ? `${h.open}–${h.close}` : ''; }), [shop]);
+  const openWeekdays = useMemo(() => new Set([0, 1, 2, 3, 4, 5, 6].filter((wd) => hoursByDay[wd])), [hoursByDay]);
+  // public_booking_slots aceita até 60 dias à frente.
+  const days = useMemo(() => Array.from({ length: 30 }, (_, i) => addDays(today, i)), [today]);
 
   useEffect(() => {
     if (!serviceId || !staffChoice || !day) return;
     setSlot(null);
     startLoading(async () => {
-      const result = await getPublicSlots(shop.slug, serviceId, staffId || null, day);
+      const result = await getPublicSlots(shop.slug, shop.timezone, serviceId, staffId || null, day);
       setSlots(result.slots);
       setSlotError(result.ok ? '' : result.message);
     });
-  }, [serviceId, staffChoice, staffId, day, shop.slug]);
+  }, [serviceId, staffChoice, staffId, day, shop.slug, shop.timezone]);
 
   useEffect(() => {
     // Horário tomado por outra pessoa: volta para a escolha de horário com a lista atualizada.
-    if (state.at && !state.ok && state.message.includes('horário')) {
+    if (state.at && !state.ok && (state.message.includes('horário') || state.message.includes('Profissional'))) {
       setStep(2);
       setSlot(null);
-      startLoading(async () => { const result = await getPublicSlots(shop.slug, serviceId, staffId || null, day); setSlots(result.slots); });
+      startLoading(async () => { const result = await getPublicSlots(shop.slug, shop.timezone, serviceId, staffId || null, day); setSlots(result.slots); });
     }
-  }, [state, shop.slug, serviceId, staffId, day]);
+  }, [state, shop.slug, shop.timezone, serviceId, staffId, day]);
 
   const restart = () => { window.location.reload(); };
   const booking = state.ok ? state.booking : undefined;
@@ -73,13 +76,15 @@ export default function PublicBooking({ shop }: { shop: PublicShop }) {
         <span className="public-confirm-icon"><Check size={24}/></span>
         <span className="public-demo-eyebrow">AGENDAMENTO CONFIRMADO</span>
         <h2>Tudo certo, {name.split(' ')[0]}!</h2>
-        <p>Seu horário está reservado em {booking.shop}. Se precisar remarcar ou cancelar, fale com a barbearia{shop.phone ? ` pelo telefone ${shop.phone}` : ''}.</p>
+        <p>Seu horário está reservado em {booking.business_name}. Se precisar remarcar ou cancelar, fale com o estabelecimento{shop.phone ? ` pelo telefone ${shop.phone}` : ''}.</p>
         <div className="public-confirm-summary">
-          <span><Scissors size={15}/>{booking.service} · {duration(booking.duration_minutes)} · {brl(booking.price)}</span>
-          <span><UserRound size={15}/>{booking.staff}</span>
-          <span><CalendarDays size={15}/>{formatDate(dateInZone(booking.starts_at, booking.timezone), { weekday: 'long', day: 'numeric', month: 'long' })} às {timeInZone(booking.starts_at, booking.timezone)}</span>
+          <span><Scissors size={15}/>{booking.service_name} · {duration(booking.duration_minutes)} · {brl(booking.price)}</span>
+          <span><UserRound size={15}/>{booking.professional_name}</span>
+          <span><CalendarDays size={15}/>{formatDate(dateInZone(booking.starts_at, shop.timezone), { weekday: 'long', day: 'numeric', month: 'long' })} às {timeInZone(booking.starts_at, shop.timezone)}</span>
           {shop.address && <span><MapPin size={15}/>{shop.address}</span>}
         </div>
+        <Link className="public-back-button" href={`/b/${shop.slug}/comanda/${booking.customer_token}`}>Acompanhar meu atendimento e comanda <ArrowRight size={15}/></Link>
+        <p className="public-demo-disclaimer">Guarde este link: ele é pessoal e dá acesso aos detalhes do seu agendamento.</p>
         <button className="public-next-button" onClick={restart}>Fazer outro agendamento</button>
       </section> : <>
         <span className="public-demo-eyebrow">ESCOLHA SERVIÇO E HORÁRIO</span>
@@ -110,13 +115,14 @@ export default function PublicBooking({ shop }: { shop: PublicShop }) {
         {!noOptions && step === 3 && slot && service && <section className="public-step-card"><div className="public-step-heading"><div><span>ETAPA 4 DE 4</span><h2>Seus dados para confirmar</h2></div><span className="demo-step-mark"><UserRound size={17}/></span></div>
           <div className="public-confirm-summary">
             <span><Scissors size={15}/>{service.name} · {duration(service.duration_minutes)} · {brl(service.price)}</span>
-            <span><UserRound size={15}/>{staffChoice === ANY ? slot.staffName : staffName}</span>
+            <span><UserRound size={15}/>{slot.staffName || staffName}</span>
             <span><CalendarDays size={15}/>{formatDate(day, { weekday: 'long', day: 'numeric', month: 'long' })} às {slot.label}</span>
           </div>
           <form action={formAction}>
-            <input type="hidden" name="slug" value={shop.slug}/><input type="hidden" name="service_id" value={serviceId}/><input type="hidden" name="staff_id" value={staffId}/><input type="hidden" name="starts_at" value={slot.start}/>
+            <input type="hidden" name="slug" value={shop.slug}/><input type="hidden" name="service_id" value={serviceId}/><input type="hidden" name="staff_id" value={slot.staffId}/><input type="hidden" name="starts_at" value={slot.start}/>
             <label className="public-date-select">Seu nome<input name="client_name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome e sobrenome" autoComplete="name" required minLength={2} maxLength={100}/></label>
             <label className="public-date-select">Seu telefone (WhatsApp)<input name="client_phone" type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(maskPhone(e.target.value))} placeholder="(11) 99999-9999" autoComplete="tel" required/></label>
+            <label className="checkbox-row"><input type="checkbox" name="allow_whatsapp"/> Aceito receber mensagens sobre o agendamento pelo WhatsApp</label>
             {state.at > 0 && !state.ok && !state.message.includes('horário') && <p className="public-form-error">{state.message}</p>}
             <div className="public-step-actions"><button type="button" className="public-back-button" onClick={() => setStep(2)}><ArrowLeft size={15}/> Voltar</button><button className="public-next-button" disabled={pending || name.trim().length < 2 || phone.replace(/\D/g, '').length < 10}>{pending ? 'Confirmando…' : 'Confirmar agendamento'} <Check size={16}/></button></div>
           </form></section>}

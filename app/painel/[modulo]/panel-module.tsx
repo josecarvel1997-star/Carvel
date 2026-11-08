@@ -8,7 +8,7 @@ import { ALLOWED_MODULES, REAL_MODULES } from '@/lib/panel/modules';
 import { ROLE_LABEL, type MemberRole } from '@/lib/panel/types';
 import {
   Activity, ArrowRight, Bell, CalendarDays, ChevronRight, Clock3, CreditCard, Heart, LayoutDashboard,
-  LogOut, Menu, Package, Scissors, Settings, Sparkles, UsersRound, CalendarClock,
+  LogOut, Menu, Package, Percent, Scissors, Settings, Sparkles, UsersRound, CalendarClock,
 } from 'lucide-react';
 
 type Props = {
@@ -25,10 +25,10 @@ type Props = {
 };
 
 const navigation = [
-  { group: 'INÍCIO', items: [{ key: '', label: 'Visão geral', icon: LayoutDashboard }] },
+  { group: 'INÍCIO', items: [{ key: '', label: 'Visão geral', icon: LayoutDashboard }, { key: 'alertas', label: 'Central de alertas', icon: Bell }] },
   { group: 'OPERAÇÃO', items: [{ key: 'agenda', label: 'Agenda', icon: CalendarDays }, { key: 'atendimentos', label: 'Atendimentos', icon: Scissors }, { key: 'fila', label: 'Fila de espera', icon: Clock3 }] },
   { group: 'RELACIONAMENTO', items: [{ key: 'clientes', label: 'Clientes', icon: UsersRound }, { key: 'recuperacao', label: 'Clientes para retornar', icon: Heart }, { key: 'fidelizacao', label: 'Fidelização', icon: Sparkles }] },
-  { group: 'GESTÃO', items: [{ key: 'servicos', label: 'Serviços', icon: Scissors }, { key: 'equipe', label: 'Equipe', icon: UsersRound }, { key: 'horarios', label: 'Horários', icon: CalendarClock }, { key: 'financeiro', label: 'Financeiro', icon: CreditCard }, { key: 'estoque', label: 'Produtos e estoque', icon: Package }, { key: 'relatorios', label: 'Relatórios', icon: Activity }] },
+  { group: 'GESTÃO', items: [{ key: 'servicos', label: 'Serviços', icon: Scissors }, { key: 'equipe', label: 'Equipe', icon: UsersRound }, { key: 'comissoes', label: 'Comissões', icon: Percent }, { key: 'horarios', label: 'Horários', icon: CalendarClock }, { key: 'financeiro', label: 'Caixa e financeiro', icon: CreditCard }, { key: 'estoque', label: 'Produtos e estoque', icon: Package }, { key: 'relatorios', label: 'Relatórios', icon: Activity }] },
   { group: 'PREFERÊNCIAS', items: [{ key: 'configuracoes', label: 'Configurações', icon: Settings }, { key: 'notificacoes', label: 'Mensagens', icon: Bell }] },
 ];
 

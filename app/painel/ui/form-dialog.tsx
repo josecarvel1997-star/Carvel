@@ -16,11 +16,12 @@ type Props = {
   triggerLabel?: string;
   triggerStyle?: CSSProperties;
   extra?: ReactNode;
+  hideSubmit?: boolean;
   children: ReactNode;
 };
 
 /** Diálogo com formulário ligado a uma Server Action (useActionState). Fecha sozinho quando a action dá certo. */
-export default function FormDialog({ title, description, eyebrow, action, submitLabel, trigger, triggerClassName = 'workspace-primary-button', triggerIcon, triggerLabel, triggerStyle, extra, children }: Props) {
+export default function FormDialog({ title, description, eyebrow, action, submitLabel, trigger, triggerClassName = 'workspace-primary-button', triggerIcon, triggerLabel, triggerStyle, extra, hideSubmit, children }: Props) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(action, initialActionState);
   const [toast, setToast] = useState('');
@@ -53,7 +54,7 @@ export default function FormDialog({ title, description, eyebrow, action, submit
         <form action={formAction} className="demo-form">
           {children}
           {!state.ok && state.message && state.at > openedAt && <div className="form-error" role="alert">{state.message}</div>}
-          <div className="demo-modal-actions"><button type="button" className="workspace-secondary-button" onClick={() => setOpen(false)}>Fechar</button><button type="submit" className="workspace-primary-button" disabled={pending}><Check size={16}/>{pending ? 'Salvando…' : submitLabel}</button></div>
+          <div className="demo-modal-actions"><button type="button" className="workspace-secondary-button" onClick={() => setOpen(false)}>Fechar</button>{!hideSubmit && <button type="submit" className="workspace-primary-button" disabled={pending}><Check size={16}/>{pending ? 'Salvando…' : submitLabel}</button>}</div>
         </form>
         {extra && <div className="dialog-extra">{extra}</div>}
       </section>
